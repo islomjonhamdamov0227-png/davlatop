@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Davlatni toping — GeoViktorina</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti kutubxonasi (bayramona effekt uchun) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #1e1b4b, #0f172a 50%, #020617);
+            min-height: 100vh;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        /* Shisha effekti (Glassmorphism) */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Tugma animatsiyalari */
+        .option-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: rgba(51, 65, 85, 0.9);
+            border-color: rgba(99, 102, 241, 0.6);
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.25);
+        }
+
+        .option-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        /* To'g'ri va noto'g'ri javob holatlari */
+        .btn-correct {
+            background: linear-gradient(135deg, #059669, #10b981) !important;
+            border-color: #34d399 !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 25px rgba(16, 185, 129, 0.4) !important;
+            animation: pulseSuccess 0.5s ease;
+        }
+
+        .btn-wrong {
+            background: linear-gradient(135deg, #dc2626, #ef4444) !important;
+            border-color: #f87171 !important;
+            color: #ffffff !important;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        .btn-eliminated {
+            opacity: 0.35;
+            pointer-events: none;
+            text-decoration: line-through;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            50% { transform: translateX(6px); }
+            75% { transform: translateX(-4px); }
+        }
+
+        @keyframes pulseSuccess {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        /* Bayroq soyasi */
+        .flag-shadow {
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4 sm:p-6">
+
+    <!-- Orqa fon dekorativ doiralari -->
+    <div class="fixed top-[-10%] left-[-10%] w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed bottom-[-10%] right-[-10%] w-96 h-96 bg-emerald-600/15 rounded-full blur-3xl pointer-events-none"></div>
+
+    <!-- Asosiy konteyner -->
+    <main class="w-full max-w-2xl z-10">
+        
+        <!-- Yuqori sarlavha va rekord -->
+        <header class="flex items-center justify-between mb-6 px-2">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg shadow-indigo-500/30">
+                    🌍
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-300">
+                        Davlatni toping
+                    </h1>
+                    <p class="text-xs text-slate-400">Geografik bilimlar sinovi</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 px-3.5 py-2 rounded-2xl">
+                <span class="text-amber-400 text-lg">🏆</span>
+                <div class="text-right">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Eng yuqori natija</div>
+                    <div id="high-score-display" class="text-sm font-bold text-amber-300">0 ball</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 1. BOSHLANG'ICH EKRAN (REJIM TANLASH) -->
+        <section id="start-screen" class="glass-card rounded-3xl p-6 sm:p-8 animate-fade-in">
+            <div class="text-center mb-8">
+                <span class="inline-block px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold mb-3">
+                    40+ davlat • 10 ta savollik bosqich
+                </span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-white mb-2">O'yin rejimini tanlang</h2>
+                <p class="text-slate-400 text-sm sm:text-base max-w-md mx-auto">
+                    Dunyo davlatlarini bayroqlari, poytaxtlari yoki qiziqarli faktlar orqali topishga harakat qiling!
+                </p>
+            </div>
+
+            <!-- Rejim kartochkalari -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <!-- Bayroqlar rejimi -->
+                <button onclick="startGame('flags')" class="group text-left p-5 rounded-2xl bg-slate-800/60 hover:bg-indigo-600/20 border border-slate-700 hover:border-indigo-500 transition-all duration-200 flex flex-col justify-between">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        🚩
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg text-white mb-1">Bayroqlar</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">Davlat bayrog'iga qarab uning nomini toping.</p>
+                    </div>
+                </button>
+
+                <!-- Poytaxtlar rejimi -->
+                <button onclick="startGame('capitals')" class="group text-left p-5 rounded-2xl bg-slate-800/60 hover:bg-emerald-600/20 border border-slate-700 hover:border-emerald-500 transition-all duration-200 flex flex-col justify-between">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        🏛️
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg text-white mb-1">Poytaxtlar</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">Berilgan poytaxt shahar qaysi davlatga tegishli?</p>
+                    </div>
+                </button>
+
+                <!-- Aralash / Faktlar rejimi -->
+                <button onclick="startGame('mixed')" class="group text-left p-5 rounded-2xl bg-slate-800/60 hover:bg-amber-600/20 border border-slate-700 hover:border-amber-500 transition-all duration-200 flex flex-col justify-between">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        🧩
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg text-white mb-1">Aralash</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">Bayroqlar, poytaxtlar va qiziqarli faktlar jamlanmasi.</p>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Qoidalar qisqacha -->
+            <div class="bg-slate-900/60 rounded-2xl p-4 border border-slate-800 flex flex-wrap items-center justify-around gap-4 text-xs text-slate-300">
+                <div class="flex items-center gap-2">
+                    <span class="text-emerald-400 font-bold">+10 ball</span> To'g'ri javob
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-orange-400 font-bold">🔥 Seriya</span> Ketma-ket bonus
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sky-400 font-bold">💡 Yordam</span> 2 ta xato variantni o'chirish
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. O'YIN EKRANI -->
+        <section id="game-screen" class="hidden glass-card rounded-3xl p-5 sm:p-8 animate-fade-in">
+            
+            <!-- Yuqori holat paneli -->
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div class="flex items-center gap-2">
+                    <button onclick="returnToMenu()" title="Bosh menyuga qaytish" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                    </button>
+                    <span id="mode-badge" class="px-3 py-1 rounded-xl bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30">
+                        Bayroqlar rejimi
+                    </span>
+                </div>
+
+                <!-- Hisob va Seriya -->
+                <div class="flex items-center gap-3">
+                    <div id="streak-badge" class="hidden items-center gap-1 px-3 py-1 rounded-xl bg-orange-500/20 border border-orange-500/30 text-orange-300 text-xs font-bold">
+                        🔥 <span id="streak-count">0</span>x
+                    </div>
+                    <div class="px-3.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-sm font-bold text-white">
+                        Hisob: <span id="score-display" class="text-emerald-400">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jarayon chizig'i (Progress bar) -->
+            <div class="mb-6">
+                <div class="flex justify-between text-xs text-slate-400 mb-1.5 font-medium">
+                    <span>Savol <span id="question-number" class="text-white font-bold">1</span> / 10</span>
+                    <span id="continent-label" class="text-indigo-300">Qit'a: Osiyo</span>
+                </div>
+                <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden p-0.5">
+                    <div id="progress-bar" class="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full transition-all duration-500" style="width: 10%"></div>
+                </div>
+            </div>
+
+            <!-- Savol kartochkasi -->
+            <div id="question-container" class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 mb-6 text-center min-h-[210px] flex flex-col items-center justify-center relative">
+                <!-- Savol sarlavhasi -->
+                <p id="question-prompt" class="text-sm sm:text-base text-slate-300 font-medium mb-4">
+                    Ushbu bayroq qaysi davlatga tegishli?
+                </p>
+
+                <!-- Bayroq ko'rinishi -->
+                <div id="flag-wrapper" class="mb-3 flex flex-col items-center justify-center">
+                    <img id="flag-image" src="" alt="Davlat bayrog'i" class="h-28 sm:h-36 w-auto rounded-xl flag-shadow object-cover border border-white/10" />
+                    <div id="flag-emoji-fallback" class="hidden text-7xl sm:text-8xl select-none">🏳️</div>
+                </div>
+
+                <!-- Poytaxt yoki Fakt ko'rinishi -->
+                <div id="clue-wrapper" class="hidden max-w-lg">
+                    <div id="clue-main" class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2">
+                        Toshkent
+                    </div>
+                    <p id="clue-sub" class="text-xs sm:text-sm text-slate-400 italic">
+                        Qiziqarli ma'lumot shu yerda ko'rinadi
+                    </p>
+                </div>
+
+                <!-- Qo'shimcha fakt (Yordam bosilganda yoki javobdan keyin chiqadi) -->
+                <div id="fact-box" class="hidden mt-4 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm text-left w-full">
+                    <span class="font-bold text-amber-400">💡 Ma'lumot:</span> <span id="fact-text"></span>
+                </div>
+            </div>
+
+            <!-- 4 ta javob varianti -->
+            <div id="options-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                <!-- Tugmalar JS orqali yaratiladi -->
+            </div>
+
+            <!-- Pastki boshqaruv tugmalari (Yordam va Keyingi savol) -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+                <button id="hint-btn" onclick="useHint()" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    <span>💡</span>
+                    <span>Yordam (<span id="hints-left">2</span>)</span>
+                </button>
+
+                <!-- Natija xabari -->
+                <div id="feedback-message" class="text-sm font-bold"></div>
+
+                <button id="next-btn" onclick="nextQuestion()" class="hidden items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/30 transition">
+                    <span>Keyingi savol</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- 3. O'YIN TUGADI EKRANI (YAKUNIY NATIJA) -->
+        <section id="end-screen" class="hidden glass-card rounded-3xl p-6 sm:p-10 text-center animate-fade-in">
+            <div id="result-emoji" class="text-6xl sm:text-7xl mb-4">🎉</div>
+            <h2 class="text-2xl sm:text-3xl font-extrabold text-white mb-2">O'yin tugadi!</h2>
+            <p id="result-subtitle" class="text-slate-300 text-sm sm:text-base mb-8">
+                Ajoyib natija! Siz geografiyani juda yaxshi bilasiz.
+            </p>
+
+            <!-- Statistika kartochkalari -->
+            <div class="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+                    <div class="text-xs text-slate-400 mb-1">Jami ball</div>
+                    <div id="final-score" class="text-xl sm:text-2xl font-extrabold text-emerald-400">0</div>
+                </div>
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+                    <div class="text-xs text-slate-400 mb-1">To'g'ri javob</div>
+                    <div id="final-correct" class="text-xl sm:text-2xl font-extrabold text-indigo-400">0 / 10</div>
+                </div>
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+                    <div class="text-xs text-slate-400 mb-1">Eng uzun seriya</div>
+                    <div id="final-streak" class="text-xl sm:text-2xl font-extrabold text-amber-400">0</div>
+                </div>
+            </div>
+
+            <!-- Tugmalar -->
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button onclick="restartCurrentMode()" class="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold shadow-lg shadow-indigo-500/30 transition flex items-center justify-center gap-2">
+                    <span>🔄</span>
+                    <span>Qayta o'ynash</span>
+                </button>
+                <button onclick="returnToMenu()" class="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold transition">
+                    Bosh menyu
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // ==========================================
+        // 1. DAVLATLAR MA'LUMOTLAR BAZASI (O'ZBEK TILIDA)
+        // ==========================================
+        const COUNTRIES = [
+            { name: "O'zbekiston", capital: "Toshkent", code: "uz", emoji: "🇺🇿", continent: "Osiyo", fact: "Dunyodagi ikki karra dengizga chiqish imkoni bo'lmagan ikki davlatdan biri (Lixtenshteyn bilan birga)." },
+            { name: "Qozog'iston", capital: "Ostona", code: "kz", emoji: "🇰🇿", continent: "Osiyo", fact: "Dunyodagi dengizga chiqish yo'li bo'lmagan eng katta davlat va maydoni bo'yicha 9-o'rinda turadi." },
+            { name: "Turkiya", capital: "Anqara", code: "tr", emoji: "🇹🇷", continent: "Osiyo / Yevropa", fact: "Istanbul shahri bir vaqtning o'zida ikki qit'ada — Yevropa va Osiyoda joylashgan." },
+            { name: "Yaponiya", capital: "Tokio", code: "jp", emoji: "🇯🇵", continent: "Osiyo", fact: "6 800 dan ortiq orollardan tashkil topgan 'Kunchiqar mamlakat'." },
+            { name: "Braziliya", capital: "Braziliya", code: "br", emoji: "🇧🇷", continent: "Janubiy Amerika", fact: "Janubiy Amerikadagi eng katta davlat va Amazonka o'rmonlarining asosiy qismi shu yerda." },
+            { name: "Fransiya", capital: "Parij", code: "fr", emoji: "🇫🇷", continent: "Yevropa", fact: "Dunyoda eng ko'p sayyoh tashrif buyuradigan davlat va Eyfel minorasi vatani." },
+            { name: "Misr", capital: "Qohira", code: "eg", emoji: "🇪🇬", continent: "Afrika", fact: "Qadimgi Giza ehromlari va Nil daryosi bilan mashhur qadimiy sivilizatsiya markazi." },
+            { name: "Kanada", capital: "Ottava", code: "ca", emoji: "🇨🇦", continent: "Shimoliy Amerika", fact: "Dunyodagi eng uzun qirg'oq chizig'iga ega va bayrog'ida zarang yaprog'i tasvirlangan." },
+            { name: "Avstraliya", capital: "Kanberra", code: "au", emoji: "🇦🇺", continent: "Okeaniya", fact: "Butun bir qit'ani egallagan yagona davlat, kenguru va koalalar vatani." },
+            { name: "Janubiy Koreya", capital: "Seul", code: "kr", emoji: "🇰🇷", continent: "Osiyo", fact: "Yuqori texnologiyalar, K-Pop musiqasi va tezkor interneti bilan mashhur davlat." },
+            { name: "Germaniya", capital: "Berlin", code: "de", emoji: "🇩🇪", continent: "Yevropa", fact: "Yevropaning eng yirik iqtisodiyoti va mashhur avtomobil brendlari vatani." },
+            { name: "Italiya", capital: "Rim", code: "it", emoji: "🇮🇹", continent: "Yevropa", fact: "Xaritada etik shakliga o'xshaydi va YUNESKO merosi ob'ektlari soni bo'yicha yetakchi." },
+            { name: "Ispaniya", capital: "Madrid", code: "es", emoji: "🇪🇸", continent: "Yevropa", fact: "Flamenko raqsi, korrida va quyoshli sohillari bilan mashhur Pireney yarimoroli davlati." },
+            { name: "Buyuk Britaniya", capital: "London", code: "gb", emoji: "🇬🇧", continent: "Yevropa", fact: "Grinvich meridiani (nol uzunlik) aynan shu davlat hududidan o'tadi." },
+            { name: "AQSH", capital: "Vashington", code: "us", emoji: "🇺🇸", continent: "Shimoliy Amerika", fact: "50 ta shtatdan iborat federativ respublika, bayrog'ida 50 ta yulduz bor." },
+            { name: "Hindiston", capital: "Nyu-Dehli", code: "in", emoji: "🇮🇳", continent: "Osiyo", fact: "Aholi soni bo'yicha dunyoda birinchi o'rinda turadi va Toj Mahal shu yerda joylashgan." },
+            { name: "Xitoy", capital: "Pekin", code: "cn", emoji: "🇨🇳", continent: "Osiyo", fact: "Buyuk Xitoy devori va ulkan pandalar vatani bo'lgan qadimiy davlat." },
+            { name: "Rossiya", capital: "Moskva", code: "ru", emoji: "🇷🇺", continent: "Yevropa / Osiyo", fact: "Hududi bo'yicha dunyodagi eng katta davlat bo'lib, 11 ta vaqt mintaqasini qamrab oladi." },
+            { name: "Argentina", capital: "Buenos-Ayres", code: "ar", emoji: "🇦🇷", continent: "Janubiy Amerika", fact: "Tango raqsi vatani va nomi lotincha 'kumush' so'zidan kelib chiqqan." },
+            { name: "Meksika", capital: "Mexiko", code: "mx", emoji: "🇲🇽", continent: "Shimoliy Amerika", fact: "Shokolad va makkajo'xorining vatani, qadimgi Mayya va Atstek sivilizatsiyalari o'lkasi." },
+            { name: "Shvetsiya", capital: "Stokgolm", code: "se", emoji: "🇸🇪", continent: "Yevropa", fact: "Nobel mukofoti topshiriladigan Skandinaviya mamlakati." },
+            { name: "Norvegiya", capital: "Oslo", code: "no", emoji: "🇳🇴", continent: "Yevropa", fact: "Chuqur fyordlari, shimol yog'dusi va qishki sport turlari bilan mashhur." },
+            { name: "Shveytsariya", capital: "Bern", code: "ch", emoji: "🇨🇭", continent: "Yevropa", fact: "Alp tog'lari, aniq soatlar, pishloq va shokoladlari bilan tanilgan betaraf davlat." },
+            { name: "BAA", capital: "Abu-Dabi", code: "ae", emoji: "🇦🇪", continent: "Osiyo", fact: "Dunyodagi eng baland bino — Burj Xalifa aynan shu davlatning Dubay shahrida joylashgan." },
+            { name: "Saudiya Arabistoni", capital: "Ar-Riyod", code: "sa", emoji: "🇸🇦", continent: "Osiyo", fact: "Islom dinining ikki muqaddas shahri — Makka va Madina joylashgan mamlakat." },
+            { name: "Indoneziya", capital: "Jakarta", code: "id", emoji: "🇮🇩", continent: "Osiyo", fact: "17 mingdan ortiq oroldan tashkil topgan dunyodagi eng yirik orol-davlat." },
+            { name: "Tailand", capital: "Bangkok", code: "th", emoji: "🇹🇭", continent: "Osiyo", fact: "Janubi-Sharqiy Osiyoda hech qachon Yevropa mustamlakasi bo'lmagan yagona davlat." },
+            { name: "Janubiy Afrika", capital: "Pretoriya", code: "za", emoji: "🇿🇦", continent: "Afrika", fact: "Dunyoda uchta rasmiy poytaxtga ega bo'lgan yagona davlat." },
+            { name: "Marokash", capital: "Rabot", code: "ma", emoji: "🇲🇦", continent: "Afrika", fact: "Sahroi Kabir cho'li va Atlantika okeani tutashgan Shimoliy Afrika davlati." },
+            { name: "Gretsiya", capital: "Afina", code: "gr", emoji: "🇬🇷", continent: "Yevropa", fact: "Olimpiya o'yinlari va demokratiya vatani bo'lgan qadimiy mamlakat." },
+            { name: "Qirg'iziston", capital: "Bishkek", code: "kg", emoji: "🇰🇬", continent: "Osiyo", fact: "Issiqko'l va Tyanshan tog'lari bilan mashhur Markaziy Osiyo davlati." },
+            { name: "Tojikiston", capital: "Dushanbe", code: "tj", emoji: "🇹🇯", continent: "Osiyo", fact: "Hududining 90 foizdan ortig'ini Pomir va Tyanshan tog'lari egallagan mamlakat." },
+            { name: "Turkmaniston", capital: "Ashxobod", code: "tm", emoji: "🇹🇲", continent: "Osiyo", fact: "Qoraqum cho'li va oq marmarli binolari bilan mashhur Markaziy Osiyo davlati." },
+            { name: "Ozarbayjon", capital: "Boku", code: "az", emoji: "🇦🇿", continent: "Osiyo / Yevropa", fact: "Kaspiy dengizi sohilida joylashgan va 'Olovlar yurti' deb ataladigan mamlakat." },
+            { name: "Malayziya", capital: "Kuala-Lumpur", code: "my", emoji: "🇲🇾", continent: "Osiyo", fact: "Mashhur Petronas egizak minoralari joylashgan tropik davlat." },
+            { name: "Singapur", capital: "Singapur", code: "sg", emoji: "🇸🇬", continent: "Osiyo", fact: "Dunyodagi eng toza va rivojlangan shahar-davlatlardan biri." },
+            { name: "Niderlandiya", capital: "Amsterdam", code: "nl", emoji: "🇳🇱", continent: "Yevropa", fact: "Lola gullari, shamol tegirmonlari va kanallari bilan mashhur mamlakat." },
+            { name: "Polsha", capital: "Varshava", code: "pl", emoji: "🇵🇱", continent: "Yevropa", fact: "Markaziy Yevropada joylashgan va mashhur bastakor Frederik Shopen vatani." },
+            { name: "Gruziya", capital: "Tbilisi", code: "ge", emoji: "🇬🇪", continent: "Osiyo / Yevropa", fact: "Kavkaz tog'lari bag'rida joylashgan, mehmondo'stligi bilan mashhur mamlakat." },
+            { name: "Yangi Zelandiya", capital: "Vellington", code: "nz", emoji: "🇳🇿", continent: "Okeaniya", fact: "'Uzuklar hukmdori' filmi suratga olingan go'zal tabiatli orol-davlat." }
+        ];
+
+        // ==========================================
+        // 2. O'YIN HOLATI (STATE)
+        // ==========================================
+        const TOTAL_QUESTIONS = 10;
+        let currentMode = 'flags'; // 'flags', 'capitals', 'mixed'
+        let questions = [];
+        let currentIndex = 0;
+        let score = 0;
+        let streak = 0;
+        let maxStreak = 0;
+        let correctCount = 0;
+        let hintsRemaining = 2;
+        let isAnswered = false;
+        let highScore = parseInt(localStorage.getItem('geo_quiz_highscore') || '0', 10);
+
+        // ==========================================
+        // 3. DOM ELEMENTLARINI BOG'LASH
+        // ==========================================
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const endScreen = document.getElementById('end-screen');
+
+        const highScoreDisplay = document.getElementById('high-score-display');
+        const modeBadge = document.getElementById('mode-badge');
+        const scoreDisplay = document.getElementById('score-display');
+        const streakBadge = document.getElementById('streak-badge');
+        const streakCount = document.getElementById('streak-count');
+        const questionNumber = document.getElementById('question-number');
+        const continentLabel = document.getElementById('continent-label');
+        const progressBar = document.getElementById('progress-bar');
+
+        const questionPrompt = document.getElementById('question-prompt');
+        const flagWrapper = document.getElementById('flag-wrapper');
+        const flagImage = document.getElementById('flag-image');
+        const flagEmojiFallback = document.getElementById('flag-emoji-fallback');
+        const clueWrapper = document.getElementById('clue-wrapper');
+        const clueMain = document.getElementById('clue-main');
+        const clueSub = document.getElementById('clue-sub');
+        const factBox = document.getElementById('fact-box');
+        const factText = document.getElementById('fact-text');
+
+        const optionsGrid = document.getElementById('options-grid');
+        const hintBtn = document.getElementById('hint-btn');
+        const hintsLeftSpan = document.getElementById('hints-left');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const nextBtn = document.getElementById('next-btn');
+
+        // Boshlang'ich rekordni ko'rsatish
+        updateHighScoreUI();
+
+        function updateHighScoreUI() {
+            highScoreDisplay.textContent = `${highScore} ball`;
+        }
+
+        // Massivni aralashtirish (Fisher-Yates algoritmi)
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // ==========================================
+        // 4. O'YINNI BOSHLASH VA SAVOLLAR TUZISH
+        // ==========================================
+        function startGame(mode) {
+            currentMode = mode;
+            currentIndex = 0;
+            score = 0;
+            streak = 0;
+            maxStreak = 0;
+            correctCount = 0;
+            hintsRemaining = 2;
+
+            // Rejim nomini o'rnatish
+            const modeNames = {
+                flags: "🚩 Bayroqlar rejimi",
+                capitals: "🏛️ Poytaxtlar rejimi",
+                mixed: "🧩 Aralash rejim"
+            };
+            modeBadge.textContent = modeNames[mode];
+
+            // 10 ta tasodifiy savol yaratish
+            const selectedCountries = shuffleArray(COUNTRIES).slice(0, TOTAL_QUESTIONS);
+            questions = selectedCountries.map((country) => {
+                // Savol turini aniqlash
+                let qType = mode;
+                if (mode === 'mixed') {
+                    const types = ['flags', 'capitals', 'fact'];
+                    qType = types[Math.floor(Math.random() * types.length)];
+                }
+
+                // 3 ta noto'g'ri variant tanlash
+                const wrongChoices = shuffleArray(
+                    COUNTRIES.filter(c => c.name !== country.name)
+                ).slice(0, 3);
+
+                const options = shuffleArray([country, ...wrongChoices]);
+
+                return {
+                    country,
+                    type: qType,
+                    options
+                };
+            });
+
+            // Ekranlarni almashtirish
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+
+            updateStatsUI();
+            renderQuestion();
+        }
+
+        function restartCurrentMode() {
+            startGame(currentMode);
+        }
+
+        function returnToMenu() {
+            gameScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        }
+
+        // ==========================================
+        // 5. SAVOLNI EKRANGA CHIQARISH
+        // ==========================================
+        function renderQuestion() {
+            isAnswered = false;
+            const currentQ = questions[currentIndex];
+            const country = currentQ.country;
+
+            // UI elementlarini tozalash
+            feedbackMessage.textContent = '';
+            nextBtn.classList.add('hidden');
+            nextBtn.classList.remove('flex');
+            factBox.classList.add('hidden');
+
+            // Yordam tugmasini yangilash
+            hintsLeftSpan.textContent = hintsRemaining;
+            hintBtn.disabled = hintsRemaining <= 0;
+
+            // Progress bar va raqamlar
+            questionNumber.textContent = currentIndex + 1;
+            continentLabel.textContent = `Qit'a: ${country.continent}`;
+            progressBar.style.width = `${((currentIndex + 1) / TOTAL_QUESTIONS) * 100}%`;
+
+            // Savol turiga qarab ko'rinishni moslash
+            if (currentQ.type === 'flags') {
+                questionPrompt.textContent = "Ushbu bayroq qaysi davlatga tegishli?";
+                flagWrapper.classList.remove('hidden');
+                clueWrapper.classList.add('hidden');
+
+                // Bayroq rasmini yuklash (xatolik bo'lsa emoji chiqadi)
+                flagImage.classList.remove('hidden');
+                flagEmojiFallback.classList.add('hidden');
+                flagImage.src = `https://flagcdn.com/w320/${country.code}.png`;
+                flagImage.onerror = () => {
+                    flagImage.classList.add('hidden');
+                    flagEmojiFallback.textContent = country.emoji;
+                    flagEmojiFallback.classList.remove('hidden');
+                };
+            } else if (currentQ.type === 'capitals') {
+                questionPrompt.textContent = "Ushbu poytaxt shahar qaysi davlatga tegishli?";
+                flagWrapper.classList.add('hidden');
+                clueWrapper.classList.remove('hidden');
+
+                clueMain.textContent = `🏛️ ${country.capital}`;
+                clueSub.textContent = `Joylashgan qit'asi: ${country.continent}`;
+            } else {
+                // Fakt rejimi (Aralash rejim ichida)
+                questionPrompt.textContent = "Ushbu ta'rif qaysi davlat haqida?";
+                flagWrapper.classList.add('hidden');
+                clueWrapper.classList.remove('hidden');
+
+                clueMain.textContent = `🌍 ${country.continent}`;
+                clueSub.textContent = `"${country.fact}"`;
+            }
+
+            // Variant tugmalarini yaratish
+            optionsGrid.innerHTML = '';
+            const letters = ['A', 'B', 'C', 'D'];
+
+            currentQ.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn w-full text-left p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 text-white font-semibold flex items-center gap-3.5';
+                btn.dataset.countryName = opt.name;
+
+                btn.innerHTML = `
+                    <span class="w-8 h-8 rounded-xl bg-slate-700/90 text-indigo-300 text-xs font-bold flex items-center justify-center shrink-0">
+                        ${letters[idx]}
+                    </span>
+                    <span class="text-sm sm:text-base truncate">${opt.name}</span>
+                `;
+
+                btn.addEventListener('click', () => handleAnswer(opt.name, btn));
+                optionsGrid.appendChild(btn);
+            });
+        }
+
+        // ==========================================
+        // 6. JAVOBNI TEKSHIRISH VA YORDAM FUNKSIYASI
+        // ==========================================
+        function handleAnswer(selectedName, clickedBtn) {
+            if (isAnswered) return;
+            isAnswered = true;
+            hintBtn.disabled = true;
+
+            const currentQ = questions[currentIndex];
+            const correctName = currentQ.country.name;
+            const allButtons = optionsGrid.querySelectorAll('button');
+
+            // Barcha tugmalarni o'chirish
+            allButtons.forEach(btn => {
+                btn.disabled = true;
+                if (btn.dataset.countryName === correctName) {
+                    btn.classList.add('btn-correct');
+                }
+            });
+
+            if (selectedName === correctName) {
+                // To'g'ri javob
+                streak++;
+                if (streak > maxStreak) maxStreak = streak;
+                correctCount++;
+
+                // Ball hisoblash (seriya bonusi bilan)
+                const bonus = streak >= 3 ? 5 : 0;
+                score += (10 + bonus);
+
+                feedbackMessage.innerHTML = bonus > 0
+                    ? `<span class="text-emerald-400">To'g'ri! +10 (+${bonus} seriya) 🎉</span>`
+                    : `<span class="text-emerald-400">To'g'ri! +10 ball ✨</span>`;
+
+                // Kichik konfetti effekti
+                if (typeof confetti === 'function') {
+                    confetti({
+                        particleCount: 45,
+                        spread: 60,
+                        origin: { y: 0.7 }
+                    });
+                }
+            } else {
+                // Noto'g'ri javob
+                streak = 0;
+                clickedBtn.classList.add('btn-wrong');
+                feedbackMessage.innerHTML = `<span class="text-rose-400">Noto'g'ri! Javob: ${correctName}</span>`;
+            }
+
+            // Qiziqarli faktni ko'rsatish (agar fakt savoli bo'lmasa)
+            if (currentQ.type !== 'fact') {
+                factText.textContent = `${currentQ.country.name} (poytaxti: ${currentQ.country.capital}) — ${currentQ.country.fact}`;
+                factBox.classList.remove('hidden');
+            }
+
+            updateStatsUI();
+
+            // Keyingi savol tugmasini ko'rsatish
+            nextBtn.querySelector('span').textContent =
+                currentIndex === TOTAL_QUESTIONS - 1 ? "Natijani ko'rish" : "Keyingi savol";
+            nextBtn.classList.remove('hidden');
+            nextBtn.classList.add('flex');
+        }
+
+        // Yordam (50/50 - 2 ta noto'g'ri variantni o'chirish)
+        function useHint() {
+            if (isAnswered || hintsRemaining <= 0) return;
+
+            hintsRemaining--;
+            hintsLeftSpan.textContent = hintsRemaining;
+            hintBtn.disabled = true; // Bir savolda faqat 1 marta yordam ishlatiladi
+
+            const correctName = questions[currentIndex].country.name;
+            const allButtons = Array.from(optionsGrid.querySelectorAll('button'));
+            const wrongButtons = shuffleArray(
+                allButtons.filter(btn => btn.dataset.countryName !== correctName)
+            );
+
+            // 2 ta xato variantni o'chirish
+            wrongButtons.slice(0, 2).forEach(btn => {
+                btn.disabled = true;
+                btn.classList.add('btn-eliminated');
+            });
+
+            feedbackMessage.innerHTML = `<span class="text-amber-300">💡 2 ta noto'g'ri variant olib tashlandi!</span>`;
+        }
+
+        function updateStatsUI() {
+            scoreDisplay.textContent = score;
+            if (streak >= 2) {
+                streakBadge.classList.remove('hidden');
+                streakBadge.classList.add('flex');
+                streakCount.textContent = streak;
+            } else {
+                streakBadge.classList.add('hidden');
+                streakBadge.classList.remove('flex');
+            }
+        }
+
+        function nextQuestion() {
+            currentIndex++;
+            if (currentIndex < TOTAL_QUESTIONS) {
+                renderQuestion();
+            } else {
+                showEndScreen();
+            }
+        }
+
+        // ==========================================
+        // 7. YAKUNIY NATIJA EKRANI
+        // ==========================================
+        function showEndScreen() {
+            gameScreen.classList.add('hidden');
+            endScreen.classList.remove('hidden');
+
+            // Rekordni yangilash
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('geo_quiz_highscore', highScore.toString());
+                updateHighScoreUI();
+            }
+
+            document.getElementById('final-score').textContent = `${score} ball`;
+            document.getElementById('final-correct').textContent = `${correctCount} / ${TOTAL_QUESTIONS}`;
+            document.getElementById('final-streak').textContent = `${maxStreak}x`;
+
+            const resultEmoji = document.getElementById('result-emoji');
+            const resultSubtitle = document.getElementById('result-subtitle');
+
+            if (correctCount >= 8) {
+                resultEmoji.textContent = "🏆";
+                resultSubtitle.textContent = "Qoyilmaqom! Siz haqiqiy geografiya bilimdonisiz!";
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 120, spread: 90, origin: { y: 0.6 } });
+                }
+            } else if (correctCount >= 5) {
+                resultEmoji.textContent = "👏";
+                resultSubtitle.textContent = "Yaxshi natija! Yana bir bor urinib ko'rib rekordingizni yangilang.";
+            } else {
+                resultEmoji.textContent = "🌍";
+                resultSubtitle.textContent = "Yaxshi boshlanish! O'yinni qayta o'ynab yangi davlatlarni kashf eting.";
+            }
+        }
+    </script>
+</body>
+</html>
